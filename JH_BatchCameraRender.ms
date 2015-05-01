@@ -1,3 +1,14 @@
+/*
+	JH_BatchCameraRender
+	Copyright (C) 2015, Janus Huang
+	januswow@gmail.com
+	http://januswow.blogspot.tw/
+	
+	This tool is based on
+	Batch Camera Render 2, maxscript tool for batch rendering in 3ds max
+	By Sergo Pogosyan (www.sergepogosyan.com, contact@sergepogosyan.com)
+*/
+
 macroScript JH_BatchCameraRender
 	category:"Janus Huang"
 	toolTip:"JH_BatchCameraRender"
