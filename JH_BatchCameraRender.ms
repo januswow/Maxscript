@@ -3,6 +3,7 @@
 	Copyright (C) 2015, Janus Huang
 	januswow@gmail.com
 	http://januswow.blogspot.tw/
+	Tested in 3dsMax 2012
 	
 	This tool is based on
 	Batch Camera Render 2, maxscript tool for batch rendering in 3ds max
@@ -14,6 +15,7 @@ macroScript JH_BatchCameraRender
 	toolTip:"JH_BatchCameraRender"
 	buttonText:"JH_BatchCameraRender"
 (
+	-- standard values
 	local isDialogOpen = false
 	-- for batch multiple files
 	batchIniFilename = "batchCameraRender_batch.ini"
@@ -24,12 +26,13 @@ macroScript JH_BatchCameraRender
 	standard_key = #("Checked", "Batch Name", "Camera", "Frames", "Width", "Height", "Output Path", "Output Filename", "Render Preset")
 	standard_resolution = #([320,240],[640,480],[768,576],[900,600],[1024,1024],[1200,800],[1200,960],[1500,1000],[1920,1080],[2048,2048],[2400,1200],[2400,1920])
 	
+	global output_lastRenderPath = ""
+	
+	-- expose values for render purpose
 	renderingFrame = 0;
 	renderingCount = 0;
 	renderingBatchname = "New Batch"
 	renderingCamera = "Camera777"
-		
-	global output_lastRenderPath = ""
 	
 	-- expose rollout
 	global mainRolloutFloater
@@ -42,9 +45,10 @@ macroScript JH_BatchCameraRender
 	
 	-- expose function
 	global fill_ListView
+	global fill_uiElements
 
 	----------------------------------------------------------------------------------------------------
-	-- Function
+	-- Basic Functions
 	----------------------------------------------------------------------------------------------------
 
 	fn isValidValue val =
@@ -78,80 +82,17 @@ macroScript JH_BatchCameraRender
 
 	fn arrayStringToArray str=
 	(
+		-- parse filenames array string to filenames array
 		tmpStr = subString str 4 -1
 		tmpArray = filterString tmpStr "\""
 		newArray = for s in tmpArray where s.count > 3 collect s
 				
 		return newArray
 	)
-
-	fn isValidKeyword keyword =
-	(
-		result = undefined		
-		if keyword != undefined do
-		(
-			keyword = toLower keyword
-			filteredKeyword = filterString keyword "^"
-			
-			case filteredKeyword[1] of
-			(
-				"filepath":
-				(
-					if maxFilepath != "" and filteredKeyword.count == 1 do result = maxFilepath
-				)
-				"filename":
-				(
-					if maxFilename != "" and filteredKeyword.count == 1 do result = substring maxFilename 1 (maxfilename.count-4)
-				)
-				"date":
-				(
-					if filteredKeyword.count == 1 then
-					(
-						result = ((dotnetclass "System.DateTime").Now).ToString("yyyyMMdd")
-					) else  if filteredKeyword.count == 2 then (
-						-- date^customCode
-						result = ((dotnetclass "System.DateTime").Now).ToString(filteredKeyword[2])
-					)
-				)
-				"count":
-				(
-					countNum = renderingCount
-					if filteredKeyword.count == 1 then
-					(
-						result = countNum as string
-					) else  if filteredKeyword.count == 2 then (
-						-- date^customCode
-						formatOption = "0" + filteredKeyword[2] + "u"
-						result = formattedPrint countNum format:formatOption
-					)
-				)
-				"frame":
-				(
-					frameNum = renderingFrame
-					if filteredKeyword.count == 1 then
-					(
-						result = frameNum as string
-					) else  if filteredKeyword.count == 2 then (
-						-- date^customCode
-						formatOption = "0" + filteredKeyword[2] + "u"
-						result = formattedPrint frameNum format:formatOption
-					)
-				)
-				"camera":
-				(
-					result = renderingCamera
-				)
-				"batchname":
-				(
-					result = renderingBatchname
-				)
-			)
-		)
-		return result
-	)
 	
 	fn openFileDialog =
 	(
+		-- open file dialog from DotNet for selecting multiple files
 		filesArray = undefined
 		
 		ofd = DotNetObject "System.Windows.Forms.OpenFileDialog"
@@ -167,55 +108,29 @@ macroScript JH_BatchCameraRender
 		
 		return filesArray
 	)
-
-	fn parseFilenameSyntax str =
+	
+	fn findAndSetDLL dllObj val =
 	(
-		originalStr = str
-		safeCount = 0
-		result = undefined
-		continueFlag = true		
-		do
+		-- set dropdownlist selection
+		if isValidValue val do
 		(
-			keywordString = undefined
-			safeCount += 1
-			keywordStartIndex = findString str "%"
-			if keywordStartIndex != undefined do
+			ddlIndex = findItem dllObj.items val
+			if ddlIndex > 0 then
 			(
-				-- found first pattern
-				headString = substring str 1 (keywordStartIndex-1)
-				tempString = substring str (keywordStartIndex+1) -1
-				keywordEndIndex = findString tempString "%"
-				if keywordEndIndex != undefined do
-				(
-					-- found second pattern
-					keywordString = substring str (keywordStartIndex+1) (keywordEndIndex-1)					
-					restString = subString tempString (keywordEndIndex+1) -1					
-					-- check keyword is valid
-					if isValidKeyword keywordString != undefined then
-					(
-						result = headString + (isValidKeyword keywordString) + restString
-						str = result
-					)
-				)
+				-- val is exist
+				dllObj.selection = ddlIndex
+			) else (
+				-- val is not exist
+				dllObj.selection = 0
 			)
-			if (isValidKeyword keywordString) == undefined or safeCount > 30 then continueFlag = false
-		) while (continueFlag)
-		if result == undefined do result = originalStr
-		return result
+		)
 	)
 	
-	fn previewOutputFilename =
-	(
-		filepathString = removeEndingSlash(parseFilenameSyntax rollout_output.edt_output_filepath.text)
-		filenameString = parseFilenameSyntax rollout_output.edt_output_filename.text
-		rollout_output.edt_output_preview.text = pathConfig.appendPath filepathString filenameString
-	)
-	
-	-- toggle enabled state of ui
 	fn updateUIState =
 	(
+		-- toggle enabled state of ui
 		if rollout_batchManager.listView_main.selectedItems.count > 0 then myState = true else myState = false
-			
+		
 		rollout_batchManager.btn_duplicate.enabled = myState
 		rollout_batchManager.btn_delete.enabled = myState
 		
@@ -223,10 +138,46 @@ macroScript JH_BatchCameraRender
 		for ctrl in rollout_camera.controls do ctrl.enabled = myState
 		for ctrl in rollout_resolution.controls do ctrl.enabled = myState
 		for ctrl in rollout_frameRange.controls do ctrl.enabled = myState
-		for ctrl in rollout_output.controls do ctrl.enabled = myState
-			
+		for ctrl in rollout_output.controls where ctrl.caption != "Open" do ctrl.enabled = myState
+		--if false then rollout_output.btn_output_filepath_open.enabled = true else rollout_output.btn_output_filepath_open.enabled = false
+		
 		if rollout_batchManager.listView_main.checkedItems.count > 0 then myState = true else myState = false
 		rollout_batchManager.btn_render.enabled = myState
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- Camera Functions
+	----------------------------------------------------------------------------------------------------
+
+	fn getCameras =
+	(
+		-- get all cameras in file
+		camerasArray = for obj in cameras where iskindof obj camera collect obj.name
+		return camerasArray
+	)
+
+	fn init_CameraDDL =
+	(
+		-- initialize camera drop down list
+		rollout_camera.ddl_cameras.items = #()
+		--rollout_camera.ddl_cameras.items = #("Top", "Front", "Left")
+		
+		customCameras = getCameras()
+		if customCameras.count > 0 do
+		(
+			join rollout_camera.ddl_cameras.items customCameras
+		)
+		rollout_camera.ddl_cameras.items = rollout_camera.ddl_cameras.items
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- INI Functions
+	----------------------------------------------------------------------------------------------------
+	
+	fn generateSectionName index = 
+	(
+		newSectionName = iniSectionPrefix + index as string
+		return newSectionName
 	)
 
 	fn getIniFilename =
@@ -242,11 +193,23 @@ macroScript JH_BatchCameraRender
 		local iniFilename = maxFilepath + batchIniFilename
 		return iniFilename
 	)
-	
-	fn generateSectionName index = 
+
+	fn readBatchIniValue = (
+		iniFilename = getBatchIniFilename()
+		return (getIniSetting iniFilename "Files to batch" "Filenames")
+	)
+
+	fn writeBatchIniValue val =
 	(
-		newSectionName = iniSectionPrefix + index as string
-		return newSectionName
+		-- write file list into 1 Section to ini File
+		-- val is full filenames (array to string)
+		if (maxFilename != "") do
+		(
+			iniFilename = getBatchIniFilename()
+			try(setFileAttribute iniFilename #readOnly false)catch()
+			
+			setIniSetting iniFilename "Files to batch" "Filenames" (val as string)
+		)
 	)
 
 	fn getLastIniSectionIndex =
@@ -267,25 +230,6 @@ macroScript JH_BatchCameraRender
 		return myLength
 	)
 
-	fn init_ListView = 
-	(
-		listviewObj = rollout_batchManager.listView_main
-		listviewObj.BeginUpdate()
-		
-		--dotNet object initialization
-		listviewObj.GridLines = true
-		listviewObj.CheckBoxes = true
-		listviewObj.Sorting = (dotNetClass "System.Windows.Forms.SortOrder").None
-		listviewObj.HeaderStyle = (dotNetClass "System.Windows.Forms.ColumnHeaderStyle").NonClickable
-		listviewObj.View = (dotNetClass "System.Windows.Forms.View").Details
-		listviewObj.FullRowSelect = true
-		listviewObj.HideSelection = false
-		
-		listviewObj.Columns.Clear()		
-		for i in standard_columns do listviewObj.Columns.add i		
-		listviewObj.EndUpdate()
-	)
-
 	fn readIniValue sectionIndex key = (
 		if sectionIndex > -1 then
 		(
@@ -295,11 +239,6 @@ macroScript JH_BatchCameraRender
 		) else (
 				format "Function : readIniValue, sectionIndex < 0"
 		)
-	)
-
-	fn readBatchIniValue = (
-		iniFilename = getBatchIniFilename()
-		return (getIniSetting iniFilename "Files to batch" "Filenames")
 	)
 
 	fn writeIniValue sectionIndex key val =
@@ -318,24 +257,11 @@ macroScript JH_BatchCameraRender
 			)
 		)
 	)
-
-	fn writeBatchIniValue val =
-	(
-		-- write file list into 1 Section to ini File
-		-- val is full filenames (array to string)
-		if (maxFilename != "") do
-		(
-			iniFilename = getBatchIniFilename()
-			try(setFileAttribute iniFilename #readOnly false)catch()
-			
-			setIniSetting iniFilename "Files to batch" "Filenames" (val as string)
-		)
-	)
-
 	
 	fn writeIniValues sectionIndices key val =
 	(
-		-- section = list item
+		-- write INI values to multiple sections
+		-- section means list item
 		if (maxFilename != "") do
 		(
 			iniFilename = getIniFilename()
@@ -354,6 +280,22 @@ macroScript JH_BatchCameraRender
 		)
 	)
 	
+	fn newBatch =
+	(
+		-- add new batch to INI data and refresh list view
+		if (maxFilename != "") do
+		(
+			iniFilename = getIniFilename()
+			try(setFileAttribute iniFilename #readOnly false)catch()
+			
+			sectionIndex = getLastIniSectionLength()
+			newSectionName = generateSectionName sectionIndex
+			
+			writeIniValue sectionIndex "Batch Name" "New Batch"
+		)
+		fill_listview()
+	)
+	
 	fn duplicateIniValues sourceIndex destinationIndex =
 	(
 		for keyName in standard_key do
@@ -364,7 +306,7 @@ macroScript JH_BatchCameraRender
 	)
 	
 	fn deleteIniSection sectionIndex =
-	(		
+	(
 		if (maxFilename != "") do
 		(
 			iniFilename = getIniFilename()
@@ -384,6 +326,29 @@ macroScript JH_BatchCameraRender
 				delIniSetting iniFilename lastSectionName
 			)
 		)
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- List View Functions
+	----------------------------------------------------------------------------------------------------
+	
+	fn init_ListView = 
+	(
+		listviewObj = rollout_batchManager.listView_main
+		listviewObj.BeginUpdate()
+		
+		--dotNet object initialization
+		listviewObj.GridLines = true
+		listviewObj.CheckBoxes = true
+		listviewObj.Sorting = (dotNetClass "System.Windows.Forms.SortOrder").None
+		listviewObj.HeaderStyle = (dotNetClass "System.Windows.Forms.ColumnHeaderStyle").NonClickable
+		listviewObj.View = (dotNetClass "System.Windows.Forms.View").Details
+		listviewObj.FullRowSelect = true
+		listviewObj.HideSelection = false
+		
+		listviewObj.Columns.Clear()		
+		for i in standard_columns do listviewObj.Columns.add i		
+		listviewObj.EndUpdate()
 	)
 
 	fn addListViewSubItem listItem subItemName subItemValue =
@@ -409,20 +374,20 @@ macroScript JH_BatchCameraRender
 		sub_item.name = subItemName as string
 	)
 
+	fn setListViewItem listItems subItemValue =
+	(	
+		for listItem in listItems do
+		(		
+			listItem.text = subItemValue as string
+		)
+	)
+
 	fn setListViewSubItems listItems subItemName subItemValue =
 	(	
 		for listItem in listItems do
 		(
 			sub_item = listItem.SubItems.item subItemName
 			if sub_item != undefined do sub_item.text = subItemValue as string
-		)
-	)
-
-	fn setListViewItem listItems subItemValue =
-	(	
-		for listItem in listItems do
-		(		
-			listItem.text = subItemValue as string
 		)
 	)
 
@@ -482,116 +447,9 @@ macroScript JH_BatchCameraRender
 		return checkedArray
 	)
 	
-	fn getRenderPresetNames =
-	(
-		renderPresetNames = #()
-		if (maxVersion())[1] >= 11000 then	--run renderPresetMRUList command only if script is running under 3dsmax 2009+
-			renderPresetNames = for i in renderPresetMRUList where (i[1]!="") collect i[1]
-		-- 	sort render_preset_array
-		return renderPresetNames 
-	)
-
-	fn getRenderPresetArray =
-	(
-		renderPresetArray = #()
-		if (maxVersion())[1] >= 11000 then	--run renderPresetMRUList command only if script is running under 3dsmax 2009+
-			renderPresetArray = renderPresetMRUList
-		-- 	sort render_preset_array
-		return renderPresetArray 
-	)
-	
-	fn getRenderPresetFilenameByName str = 
-	(
-		reseult = undefined
-		renderPresetArray = getRenderPresetArray()
-		for preset in renderPresetArray where preset[1] == str do reseult = preset[2]
-		return reseult
-	)
-	
-	fn updateRenderPresets =
-	(
-		rollout_batchSettings.ddl_renderPresets.items = getRenderPresetNames()
-		rollout_batchSettings.ddl_renderPresets.selection = 0
-	)
-
-	-- get all cameras in file
-	fn getCameras =
-	(
-		camerasArray = for obj in cameras where iskindof obj camera collect obj.name
-		return camerasArray
-	)
-
-	fn init_CameraDDL =
-	(
-		rollout_camera.ddl_cameras.items = #("Top", "Front", "Left")
-		
-		customCameras = getCameras()
-		if customCameras.count > 0 do
-		(
-			join rollout_camera.ddl_cameras.items customCameras
-		)
-		rollout_camera.ddl_cameras.items = rollout_camera.ddl_cameras.items
-	)
-
-	fn init_ResolutionDDL =
-	(
-		local resolutionArray = #()
-		for item in standard_resolution do
-		(
-			local newRes = (item[1] as integer) as string + " x " + (item[2] as integer) as string
-			append resolutionArray newRes
-		)
-		
-		rollout_resolution.ddl_resolutionPresets.items = resolutionArray
-	)
-
-	fn getStandardResolution index =
-	(
-		local width = standard_resolution[index][1]
-		local height = standard_resolution[index][2]
-		
-		rollout_resolution.spn_resolutionWidth.value = width
-		writeIniValues (getListViewSelectedIndices()) "Width" ((width as integer) as string)
-		setListViewSubItems (getListViewSelectedItems()) "Width" ((width as integer) as string)
-		
-		rollout_resolution.spn_resolutionHeight.value = height
-		writeIniValues (getListViewSelectedIndices()) "Height" ((height as integer) as string)
-		setListViewSubItems (getListViewSelectedItems()) "Height" ((height as integer) as string)
-	)
-	
-	fn newBatch =
-	(
-		if (maxFilename != "") do
-		(
-			iniFilename = getIniFilename()
-			try(setFileAttribute iniFilename #readOnly false)catch()
-			
-			sectionIndex = getLastIniSectionLength()
-			newSectionName = generateSectionName sectionIndex
-			
-			writeIniValue sectionIndex "Batch Name" "New Batch"
-		)
-		fill_listview()
-	)
-	
-	fn findAndSetDLL dllObj val =
-	(
-		if isValidValue val do
-		(
-			ddlIndex = findItem dllObj.items val
-			if ddlIndex > 0 then
-			(
-				-- val is exist
-				dllObj.selection = ddlIndex
-			) else (
-				-- val is not exist
-				dllObj.selection = 0
-			)
-		)
-	)
-	
 	fn fill_ListView =
 	(
+		-- fill data from INI to list view
 		listviewObj = rollout_batchManager.listView_main
 		-- get existing items length in ini file
 		listviewObj.Items.Clear()
@@ -660,8 +518,201 @@ macroScript JH_BatchCameraRender
 		)
 	)
 	
+	----------------------------------------------------------------------------------------------------
+	-- Filename sytax Functions
+	----------------------------------------------------------------------------------------------------
+	
+	fn parseKeyword keyword =
+	(
+		-- parse filename syntax
+		result = undefined		
+		if keyword != undefined do
+		(
+			keyword = toLower keyword
+			filteredKeyword = filterString keyword "^"
+			
+			case filteredKeyword[1] of
+			(
+				"filepath":
+				(
+					if maxFilepath != "" and filteredKeyword.count == 1 do result = maxFilepath
+				)
+				"filename":
+				(
+					if maxFilename != "" and filteredKeyword.count == 1 do result = substring maxFilename 1 (maxfilename.count-4)
+				)
+				"date":
+				(
+					if filteredKeyword.count == 1 then
+					(
+						result = ((dotnetclass "System.DateTime").Now).ToString("yyyyMMdd")
+					) else  if filteredKeyword.count == 2 then (
+						-- date^customCode
+						result = ((dotnetclass "System.DateTime").Now).ToString(filteredKeyword[2])
+					)
+				)
+				"count":
+				(
+					countNum = renderingCount
+					if filteredKeyword.count == 1 then
+					(
+						result = countNum as string
+					) else  if filteredKeyword.count == 2 then (
+						-- date^customCode
+						formatOption = "0" + filteredKeyword[2] + "u"
+						result = formattedPrint countNum format:formatOption
+					)
+				)
+				"frame":
+				(
+					frameNum = renderingFrame
+					if filteredKeyword.count == 1 then
+					(
+						result = frameNum as string
+					) else  if filteredKeyword.count == 2 then (
+						-- date^customCode
+						formatOption = "0" + filteredKeyword[2] + "u"
+						result = formattedPrint frameNum format:formatOption
+					)
+				)
+				"camera":
+				(
+					result = renderingCamera
+				)
+				"batchname":
+				(
+					result = renderingBatchname
+				)
+			)
+		)
+		return result
+	)
+
+	fn parseFilenameSyntax str =
+	(
+		originalStr = str
+		safeCount = 0
+		result = undefined
+		continueFlag = true		
+		do
+		(
+			keywordString = undefined
+			safeCount += 1
+			keywordStartIndex = findString str "%"
+			if keywordStartIndex != undefined do
+			(
+				-- found first pattern
+				headString = substring str 1 (keywordStartIndex-1)
+				tempString = substring str (keywordStartIndex+1) -1
+				keywordEndIndex = findString tempString "%"
+				if keywordEndIndex != undefined do
+				(
+					-- found second pattern
+					keywordString = substring str (keywordStartIndex+1) (keywordEndIndex-1)					
+					restString = subString tempString (keywordEndIndex+1) -1					
+					-- check keyword is valid
+					if parseKeyword keywordString != undefined then
+					(
+						result = headString + (parseKeyword keywordString) + restString
+						str = result
+					)
+				)
+			)
+			if (parseKeyword keywordString) == undefined or safeCount > 30 then continueFlag = false
+		) while (continueFlag)
+		if result == undefined do result = originalStr
+		return result
+	)
+	
+	fn previewOutputFilename =
+	(
+		selectedIndex = getListViewSelectedIndex()
+		-- set properties
+		renderingCamera = readIniValue selectedIndex "Camera"
+		renderingBatchname = readIniValue selectedIndex "Batch Name"
+		
+		filepathString = parseFilenameSyntax rollout_output.edt_output_filepath.text
+		filenameString = parseFilenameSyntax rollout_output.edt_output_filename.text
+		rollout_output.edt_output_preview.text = pathConfig.appendPath filepathString filenameString
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- Render presets Functions
+	----------------------------------------------------------------------------------------------------
+	
+	fn getRenderPresetNames =
+	(
+		renderPresetNames = #()
+		if (maxVersion())[1] >= 11000 then	--run renderPresetMRUList command only if script is running under 3dsmax 2009+
+			renderPresetNames = for i in renderPresetMRUList where (i[1]!="") collect i[1]
+		-- 	sort render_preset_array
+		return renderPresetNames 
+	)
+
+	fn getRenderPresetArray =
+	(
+		renderPresetArray = #()
+		if (maxVersion())[1] >= 11000 then	--run renderPresetMRUList command only if script is running under 3dsmax 2009+
+			renderPresetArray = renderPresetMRUList
+		-- 	sort render_preset_array
+		return renderPresetArray 
+	)
+	
+	fn getRenderPresetFilenameByName str = 
+	(
+		reseult = undefined
+		renderPresetArray = getRenderPresetArray()
+		for preset in renderPresetArray where preset[1] == str do reseult = preset[2]
+		return reseult
+	)
+	
+	fn updateRenderPresets =
+	(
+		-- update render presets drop down list
+		rollout_batchSettings.ddl_renderPresets.items = getRenderPresetNames()
+		rollout_batchSettings.ddl_renderPresets.selection = 0
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- Resolution Functions
+	----------------------------------------------------------------------------------------------------
+
+	fn init_ResolutionDDL =
+	(
+		-- initialize standard resolution drop down list (resolution presets)
+		local resolutionArray = #()
+		for item in standard_resolution do
+		(
+			local newRes = (item[1] as integer) as string + " x " + (item[2] as integer) as string
+			append resolutionArray newRes
+		)
+		
+		rollout_resolution.ddl_resolutionPresets.items = resolutionArray
+	)
+
+	fn getStandardResolution index =
+	(
+		-- set resoltion value from selected standard resolution
+		local width = standard_resolution[index][1]
+		local height = standard_resolution[index][2]
+		
+		-- update UI, INI, List View
+		rollout_resolution.spn_resolutionWidth.value = width
+		writeIniValues (getListViewSelectedIndices()) "Width" ((width as integer) as string)
+		setListViewSubItems (getListViewSelectedItems()) "Width" ((width as integer) as string)
+		
+		rollout_resolution.spn_resolutionHeight.value = height
+		writeIniValues (getListViewSelectedIndices()) "Height" ((height as integer) as string)
+		setListViewSubItems (getListViewSelectedItems()) "Height" ((height as integer) as string)
+	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- Fill UI elements Functions
+	----------------------------------------------------------------------------------------------------
+	
 	fn fill_uiElements =
 	(
+		-- fill data from INI to UI of selected list item
 		listviewObj = rollout_batchManager.listView_main
 		if listviewObj.selectedIndices.count > 0 then
 		(
@@ -673,44 +724,18 @@ macroScript JH_BatchCameraRender
 				for selectedListItemIndex in selectedListItemIndices do
 				(
 					val = readIniValue selectedListItemIndex keyName
-					/*
-					if val != lastVal and lastValue != true do (
-						-- not first run and val is changed
-						equalFlag = false
-					)
-					*/
+					
 					case keyName of
 					(
 						"Checked": ()	
 						"Batch Name":
 						(
 							if isValidValue val then rollout_batchSettings.edt_batchName.text = val else rollout_batchSettings.edt_batchName.text = ""
-							/*
-							print (equalFlag)
-							if equalFlag then
-							(
-								if isValidValue val then rollout_batchSettings.edt_batchName.text = val else rollout_batchSettings.edt_batchName.text = ""
-							) else (
-								rollout_batchSettings.edt_batchName.text = ""
-							)
-							*/
 						)						
 						"Camera":
 						(
 							init_CameraDDL()
 							findAndSetDLL rollout_camera.ddl_cameras val
-							/*
-							if isValidValue val do
-							(
-								ddlIndex = findItem rollout_camera.ddl_cameras.items val
-								if ddlIndex > 0 then
-								(
-									-- camera name is exist
-									rollout_camera.ddl_cameras.selection = ddlIndex
-								) else (
-									rollout_camera.ddl_cameras.selection = 0
-								)
-							)*/
 						)						
 						"Frames":
 						(
@@ -729,6 +754,7 @@ macroScript JH_BatchCameraRender
 						(
 							rollout_output.edt_output_filepath.text = val
 							previewOutputFilename()
+							if doesFileExist (parseFilenameSyntax val) then rollout_output.btn_output_filepath_open.enabled = true else rollout_output.btn_output_filepath_open.enabled = false
 						)						
 						"Output Filename":
 						(
@@ -739,18 +765,6 @@ macroScript JH_BatchCameraRender
 						(
 							updateRenderPresets()
 							findAndSetDLL rollout_batchSettings.ddl_renderPresets val
-							/*
-							if isValidValue val do
-							(
-								ddlIndex = findItem rollout_batchSettings.ddl_renderPresets.items val
-								if ddlIndex > 0 then
-								(
-									-- preset name is exist
-									rollout_batchSettings.ddl_renderPresets.selection = ddlIndex
-								) else (
-									rollout_batchSettings.ddl_renderPresets.selection = 0
-								)
-							)*/
 						)						
 						default: ()
 					)
@@ -761,6 +775,10 @@ macroScript JH_BatchCameraRender
 			--format "Function : %, %. value : %\n" "fill_uiElements" "listviewObj.selectedIndices.count < 1" (listviewObj.selectedIndices.count as string)
 		)
 	)
+	
+	----------------------------------------------------------------------------------------------------
+	-- Render Functions
+	----------------------------------------------------------------------------------------------------
 	
 	fn parseFramesStringToArray str =
 	(
@@ -790,12 +808,12 @@ macroScript JH_BatchCameraRender
 		)
 		return framesWaitForRender
 	)
-
+	
 	fn renderFrame frame camera_obj output_width output_height outputFile quiet =
 	(
 		-- MAXScript HELP : Controlling the Renderer / Render Scene Dialog 
-		render frame:frame camera:camera_obj outputSize:[output_width, output_height] outputfile:outputFile vfb:(not quiet) progressbar:true quiet:quiet
-		format "\t...Done\n"
+		result = render frame:frame camera:camera_obj outputSize:[output_width, output_height] outputfile:outputFile vfb:(not quiet) progressbar:true quiet:quiet
+		format "%\n\t...Done\n" result
 	)
 	
 	fn renderHandler checkedIndices =
@@ -803,16 +821,23 @@ macroScript JH_BatchCameraRender
 		for index in checkedIndices do
 		(
 			-- each selected index
+			if keyboard.escPressed do
+			(
+				messageBox "Batch Process aborted by User"
+				exit
+			)
 			framesString = readIniValue index "Frames"
 			framesWaitForRender = parseFramesStringToArray framesString
 			
 			renderingBatchname = readIniValue index "Batch Name"
 			renderingCamera = readIniValue index "Camera"
 			myCamera = getNodeByName renderingCamera
+			
 			if isvalidNode myCamera and iskindof myCamera Camera then
 			(
 				myWidth = (readIniValue index "Width") as integer
 				myHeight = (readIniValue index "Height") as integer
+				
 				if myWidth < 1 or myHeight < 1 or myWidth == undefined or myHeight == undefined then
 				(
 					format "Resolution is not valid. Batch : % aborted.\n" renderingBatchname
@@ -830,6 +855,11 @@ macroScript JH_BatchCameraRender
 					
 					for f in framesWaitForRender do
 					(
+						if keyboard.escPressed do
+						(
+							messageBox "Batch Process aborted by User"
+							exit
+						)
 						-- update counter for filename
 						renderingFrame = f
 						renderingCount +=1
@@ -849,14 +879,13 @@ macroScript JH_BatchCameraRender
 						)
 						
 						if doesFileExist filepathString then
-						(						
+						(
 							-- render each frame
 							format "============== Rendering % ==============\n" renderingBatchname
 							format "Frame : %, Camera : %\n" f myCamera.name
 							format "Width : %, Height : %\n" myWidth myHeight
 							--format "filepathString : %\nfilenameString : %\n" filepathString filenameString
-							format "myOutput : %\n" myOutput
-							
+							--format "myOutput : %\n" myOutput
 							renderFrame f myCamera myWidth myHeight myOutput myQuiet
 						) else (
 							format "Output destination is not valid (%). Batch : % aborted.\n" myOutput renderingBatchname
@@ -869,11 +898,11 @@ macroScript JH_BatchCameraRender
 			) else (
 				format "Camera does not exist. Batch : % aborted.\n" renderingBatchname
 			)
-		)		
+		)
 	)
 	
 	----------------------------------------------------------------------------------------------------
-	-- Rollout
+	-- Rollouts
 	----------------------------------------------------------------------------------------------------
 
 	rollout rollout_batchManager "Batch Manager"
@@ -1101,6 +1130,7 @@ macroScript JH_BatchCameraRender
 			)
 		)
 	)
+	
 	rollout rollout_resolution "Resolution"
 	(
 		dropDownList ddl_resolutionPresets width:250
@@ -1134,14 +1164,7 @@ macroScript JH_BatchCameraRender
 
 	rollout rollout_frameRange "Frame Range"
 	(
-		--radiobuttons ckb_rangeType_single labels:#("Single") default:0 align:#left
-		--radiobuttons ckb_rangeType_activeTimeSegment labels:#("Active Time Segment") default:0 align:#left
-		--radiobuttons ckb_rangeType_range labels:#("Range") default:0 align:#left across:4
-		--spinner spn_range_startFrame range:[0,90000,0] type:#integer width:70 align:#left offset:[-50,0]
-		--label lbl_range_to "to" width:30 align:#left offset:[-85,0]
-		--spinner spn_range_endFrame range:[0,90000,100] type:#integer width:70 align:#left offset:[-180,0]
-		--radiobuttons ckb_rangeType_frames labels:#("Frames") default:1 align:#left across:2
-		editText edt_frames align:#left --offset:[-165,0]
+		editText edt_frames align:#left
 		label lbl_description "Example : 1,3,5-12" align:#right
 		
 		on edt_frames entered str do
@@ -1156,7 +1179,7 @@ macroScript JH_BatchCameraRender
 	--	button btn_setFilename "File..."
 		label lbl_output_filepath "File Path" align:#left across:3
 		editText edt_output_filepath width:300 offset:[-89,0]
-		button btn_output_filepath_open "Open" width:70 align:#right offset:[-2,0]
+		button btn_output_filepath_open "Open" width:70 align:#right offset:[-2,0] enabled:false
 		label lbl_output_filename "Filename" align:#left across:3
 		editText edt_output_filename width:300 offset:[-89,0]
 		button btn_output_filenameSyntax "Syntax" width:70 align:#right
@@ -1170,6 +1193,7 @@ macroScript JH_BatchCameraRender
 			writeIniValues (getListViewSelectedIndices())  "Output Path" str
 			setListViewSubItems (getListViewSelectedItems()) "Output Path" str
 			previewOutputFilename()
+			if doesFileExist (parseFilenameSyntax str) then btn_output_filepath_open.enabled = true else btn_output_filepath_open.enabled = false
 		)
 		
 		on edt_output_filename entered str do
@@ -1205,7 +1229,7 @@ macroScript JH_BatchCameraRender
 		
 		on btn_output_filepath_open pressed do
 		(
-			thisPath = removeEndingSlash(parseFilenameSyntax edt_output_filepath.text)			
+			thisPath = parseFilenameSyntax edt_output_filepath.text
 			if doesFileExist thisPath do ShellLaunch ("explorer.exe") ( "/n, " + thisPath)
 		)
 	)
@@ -1224,13 +1248,14 @@ macroScript JH_BatchCameraRender
 	)
 	*/
 	
-	--#################################
-	--####          macroscript event handlers       #######
-	--#################################
+	----------------------------------------------------------------------------------------------------
+	-- MAXScript Events Handler
+	----------------------------------------------------------------------------------------------------
 	
 	on isChecked do
 	(
-		isDialogOpen  --return true if rollout is open
+		--return true if rollout is open
+		isDialogOpen
 	)
 	
 	on execute do
@@ -1238,10 +1263,12 @@ macroScript JH_BatchCameraRender
 		--here can be placed initialization code
 		--to set window placement, size, etc.
 		
-		if isDialogOpen then --if open, close it
+		if isDialogOpen then 
 		(
+			--if open, close it
 			CloseRolloutFloater mainRolloutFloater
-			isDialogOpen = false --and lower the flag
+			--and lower the flag
+			isDialogOpen = false
 		) else (
 			--if closed, open it
 			mainRolloutFloater = newRolloutFloater "JH Batch Camera Render" 500 700
