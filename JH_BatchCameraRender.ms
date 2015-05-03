@@ -346,8 +346,8 @@ macroScript JH_BatchCameraRender
 		listviewObj.FullRowSelect = true
 		listviewObj.HideSelection = false
 		
-		listviewObj.Columns.Clear()		
-		for i in standard_columns do listviewObj.Columns.add i		
+		listviewObj.Columns.Clear()
+		for i in standard_columns do listviewObj.Columns.add i
 		listviewObj.EndUpdate()
 	)
 
