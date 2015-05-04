@@ -840,7 +840,8 @@ macroScript JH_BatchCameraRender
 	)
 	
 	fn renderHandler checkedIndices =
-	(		
+	(
+		renderSceneDialog_saveFile = rendSaveFile
 		for index in checkedIndices do
 		(
 			-- each selected index
@@ -874,12 +875,13 @@ macroScript JH_BatchCameraRender
 					(
 						renderPresets.loadAll 0 renderPresetFile
 					) else (
-						format "Load render preset failed. Preset File : % does not exist. Batch : % aborted\n" renderPresetFile renderingBatchname
+						format "Load render preset failed. Preset File : % does not exist.\n" myRenderPreset
 					)
 					
 					format "============== Batching : % ==============\n" renderingBatchname
 					format "Camera : %, Render Preset : %\n" myCamera.name myRenderPreset 
 					format "Width : %, Height : %, Pixel Aspect : %\n" myWidth myHeight myPixelAspect
+					rendSaveFile = true
 					
 					for f in framesWaitForRender do
 					(
@@ -917,6 +919,7 @@ macroScript JH_BatchCameraRender
 					-- reset counter
 					renderingFrame = 0
 					renderingCount = 0
+					rendSaveFile = renderSceneDialog_saveFile
 				)
 			) else (
 				format "Camera does not exist. Batch : % aborted.\n" renderingBatchname
