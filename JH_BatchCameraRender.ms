@@ -22,8 +22,8 @@ macroScript JH_BatchCameraRender
 	-- for batch single file
 	iniFileSuffix = "_batch.ini"
 	iniSectionPrefix = "Batch_"
-	standard_columns = #("Batch Name", "Camera", "Frames", "Width", "Height", "Output Path", "Output Filename", "Render Preset")
-	standard_key = #("Checked", "Batch Name", "Camera", "Frames", "Width", "Height", "Output Path", "Output Filename", "Render Preset")
+	standard_columns = #("Batch Name", "Camera", "Frames", "Width", "Height", "Pixel Aspect", "Output Path", "Output Filename", "Render Preset")
+	standard_key = #("Checked", "Batch Name", "Camera", "Frames", "Width", "Height", "Pixel Aspect", "Output Path", "Output Filename", "Render Preset")
 	standard_resolution = #([320,240],[640,480],[768,576],[900,600],[1024,1024],[1200,800],[1200,960],[1500,1000],[1920,1080],[2048,2048],[2400,1200],[2400,1920])
 	
 	global output_lastRenderPath = ""
@@ -231,14 +231,16 @@ macroScript JH_BatchCameraRender
 	)
 
 	fn readIniValue sectionIndex key = (
-		if sectionIndex > -1 then
+		result = undefined
+		iniFilename = getIniFilename()
+		if sectionIndex > -1 and iniFilename != undefined then
 		(
-			iniFilename = getIniFilename()
 			newSectionName = generateSectionName sectionIndex
-			return (getIniSetting iniFilename newSectionName key)
+			result = getIniSetting iniFilename newSectionName key
 		) else (
-				format "Function : readIniValue, sectionIndex < 0"
+				format "Function : %, %.\n" "readIniValue" "sectionIndex < 0 or INI File not exist"
 		)
+		return result
 	)
 
 	fn writeIniValue sectionIndex key val =
@@ -375,9 +377,10 @@ macroScript JH_BatchCameraRender
 	)
 
 	fn setListViewItem listItems subItemValue =
-	(	
+	(
+		-- set list view item for Batch Name value
 		for listItem in listItems do
-		(		
+		(
 			listItem.text = subItemValue as string
 		)
 	)
@@ -422,7 +425,7 @@ macroScript JH_BatchCameraRender
 		
 		return selectedItems
 	)
-
+/*
 	fn getListItemCheckState listviewObj index =
 	(
 		if not index > (listviewObj.Items.Count-1) then
@@ -433,7 +436,7 @@ macroScript JH_BatchCameraRender
 		)
 		return val
 	)
-	
+*/	
 	fn getListViewCheckedIndices =
 	(
 		checkedArray = #()
@@ -499,6 +502,10 @@ macroScript JH_BatchCameraRender
 							addListViewSubItem li keyName (readIniValue sectionIndex keyName)
 						)
 						"Render Preset":
+						(
+							addListViewSubItem li keyName (readIniValue sectionIndex keyName)
+						)
+						"Pixel Aspect":
 						(
 							addListViewSubItem li keyName (readIniValue sectionIndex keyName)
 						)
@@ -765,7 +772,11 @@ macroScript JH_BatchCameraRender
 						(
 							updateRenderPresets()
 							findAndSetDLL rollout_batchSettings.ddl_renderPresets val
-						)						
+						)	
+						"Pixel Aspect":
+						(
+							rollout_resolution.spn_resolutionPixelAspect.value = val as float
+						)
 						default: ()
 					)
 					lastValue = val
@@ -809,11 +820,23 @@ macroScript JH_BatchCameraRender
 		return framesWaitForRender
 	)
 	
-	fn renderFrame frame camera_obj output_width output_height outputFile quiet =
+	fn renderFrame frame camera_obj output_width output_height output_pixelAspect outputFile quiet =
 	(
+		format "== Rendering Frame : %\n" frame
+		format "   Output : %\n" outputFile
+		/*
+		format "Frame : %, Camera : %\n" frame camera_obj.name
+		format "Width : %, Height : %, Pixel Aspect : %\n" output_width output_height output_pixelAspect
+		--format "filepathString : %\nfilenameString : %\n" filepathString filenameString
+		format "myOutput : %\n" outputFile
+		*/
+		if output_pixelAspect == undefined or output_pixelAspect == 0 do output_pixelAspect = 1
+		
 		-- MAXScript HELP : Controlling the Renderer / Render Scene Dialog 
-		result = render frame:frame camera:camera_obj outputSize:[output_width, output_height] outputfile:outputFile vfb:(not quiet) progressbar:true quiet:quiet
-		format "%\n\t...Done\n" result
+		result = render frame:frame camera:camera_obj outputSize:[output_width, output_height] pixelaspect:output_pixelAspect outputfile:outputFile vfb:false quiet:quiet progressbar:true cancelled:&cancelledFlag missingExtFilesAction:#logmsg missingExtFilesList:&missingExtList missingUVWAction:#logmsg missingUVWList:&missingUVWList
+		format "   Bitmap to : %\n" result
+		format "** % **\n" (if cancelledFlag then "Render Cancelled" else "Render Done")
+		format "%%" (if missingExtList != undefined and missingExtList.count != 0 then "   Missing Ext File : " + missingExtList as string + "\n" else "") (if missingUVWList != undefined and missingUVWList.count != 0 then "   Missing UVW : " + missingUVWList as string + "\n" else "")
 	)
 	
 	fn renderHandler checkedIndices =
@@ -845,6 +868,7 @@ macroScript JH_BatchCameraRender
 					myQuiet = rollout_batchManager.ckb_output_quietMode.checked
 					
 					myRenderPreset = readIniValue index "Render Preset"
+					myPixelAspect = (readIniValue index "Pixel Aspect") as float
 					renderPresetFile = getRenderPresetFilenameByName myRenderPreset
 					if renderPresetFile != undefined and doesFileExist renderPresetFile then
 					(
@@ -852,6 +876,10 @@ macroScript JH_BatchCameraRender
 					) else (
 						format "Load render preset failed. Preset File : % does not exist. Batch : % aborted\n" renderPresetFile renderingBatchname
 					)
+					
+					format "============== Batching : % ==============\n" renderingBatchname
+					format "Camera : %, Render Preset : %\n" myCamera.name myRenderPreset 
+					format "Width : %, Height : %, Pixel Aspect : %\n" myWidth myHeight myPixelAspect
 					
 					for f in framesWaitForRender do
 					(
@@ -875,18 +903,13 @@ macroScript JH_BatchCameraRender
 						(
 							-- path not exist, need create folder
 							makeDir filepathString
-							format "Create folder : %\n" filepathString
+							format "Folder Created : %\n" filepathString
 						)
 						
 						if doesFileExist filepathString then
 						(
 							-- render each frame
-							format "============== Rendering % ==============\n" renderingBatchname
-							format "Frame : %, Camera : %\n" f myCamera.name
-							format "Width : %, Height : %\n" myWidth myHeight
-							--format "filepathString : %\nfilenameString : %\n" filepathString filenameString
-							--format "myOutput : %\n" myOutput
-							renderFrame f myCamera myWidth myHeight myOutput myQuiet
+							renderFrame f myCamera myWidth myHeight myPixelAspect myOutput myQuiet
 						) else (
 							format "Output destination is not valid (%). Batch : % aborted.\n" myOutput renderingBatchname
 						)
@@ -1134,10 +1157,12 @@ macroScript JH_BatchCameraRender
 	rollout rollout_resolution "Resolution"
 	(
 		dropDownList ddl_resolutionPresets width:250
-		label lbl_resolutionWidth "Width" width:80 align:#left across:4
-		spinner spn_resolutionWidth "" range:[1,9048,640] type:#integer width:80 align:#left offset:[-80,0]
+		label lbl_resolutionWidth "Width" width:80 align:#left across:6
+		spinner spn_resolutionWidth "" range:[1,9048,640] type:#integer width:80 align:#left offset:[-40,0]
 		label lbl_resolutionHeight "Height" width:80 align:#left
-		spinner spn_resolutionHeight "" range:[1,9048,480] type:#integer width:80 align:#left offset:[-80,0]
+		spinner spn_resolutionHeight "" range:[1,9048,480] type:#integer width:80 align:#left offset:[-40,0]
+		label lbl_resolutionPixelAspect "Pixel Aspect" width:80 align:#left
+		spinner spn_resolutionPixelAspect "" range:[0.001,1000,1] type:#float width:80 align:#left offset:[-10,0]
 		
 		on rollout_resolution open do
 		(
@@ -1159,6 +1184,12 @@ macroScript JH_BatchCameraRender
 		(
 			writeIniValues (getListViewSelectedIndices()) "Height" (val as string)
 			setListViewSubItems (getListViewSelectedItems()) "Height" (val as string)
+		)
+		
+		on spn_resolutionPixelAspect changed val do
+		(
+			writeIniValues (getListViewSelectedIndices()) "Pixel Aspect" (val as string)
+			setListViewSubItems (getListViewSelectedItems()) "Pixel Aspect" (val as string)
 		)
 	)
 
@@ -1217,7 +1248,7 @@ macroScript JH_BatchCameraRender
 			info_string += "\n"
 			info_string += "%frame%\tFrame count\n"
 			info_string += "%count%\tRender count\n"
-			info_string += "(You can padding zero by ^, ex. %frame^4%, %count^6)\n"
+			info_string += "(You can padding zero by ^, ex. %frame^4%, %count^6%)\n"
 			info_string += "\n"
 			info_string += "Example:\n"
 			info_string += "\n"
@@ -1229,8 +1260,14 @@ macroScript JH_BatchCameraRender
 		
 		on btn_output_filepath_open pressed do
 		(
-			thisPath = parseFilenameSyntax edt_output_filepath.text
-			if doesFileExist thisPath do ShellLaunch ("explorer.exe") ( "/n, " + thisPath)
+			thisPath = parseFilenameSyntax edt_output_filepath.text			
+			if doesFileExist thisPath then
+			(
+				ShellLaunch ("explorer.exe") ( "/n, " + thisPath)
+			) else if queryBox("Location does not exist, do you want to create folder?") do (
+				makeDir thisPath
+				ShellLaunch ("explorer.exe") ( "/n, " + thisPath)
+			)
 		)
 	)
 	
