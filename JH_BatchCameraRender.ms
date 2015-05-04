@@ -842,11 +842,17 @@ macroScript JH_BatchCameraRender
 	fn renderHandler checkedIndices =
 	(
 		renderSceneDialog_saveFile = rendSaveFile
+		renderSceneDialog_Filename = rendOutputFilename
+		
 		for index in checkedIndices do
 		(
 			-- each selected index
 			if keyboard.escPressed do
 			(
+				renderingFrame = 0
+				renderingCount = 0
+				rendSaveFile = renderSceneDialog_saveFile
+				rendOutputFilename = renderSceneDialog_Filename
 				messageBox "Batch Process aborted by User"
 				exit
 			)
@@ -881,12 +887,19 @@ macroScript JH_BatchCameraRender
 					format "============== Batching : % ==============\n" renderingBatchname
 					format "Camera : %, Render Preset : %\n" myCamera.name myRenderPreset 
 					format "Width : %, Height : %, Pixel Aspect : %\n" myWidth myHeight myPixelAspect
+					
+					-- set propertires for vray rendering, without these settings will output empty bitmaps.
 					rendSaveFile = true
+					if not doesFileExist (getFilenamePath rendOutputFilename) do rendOutputFilename= @"C:\test.jpg"
 					
 					for f in framesWaitForRender do
 					(
 						if keyboard.escPressed do
 						(
+							renderingFrame = 0
+							renderingCount = 0
+							rendSaveFile = renderSceneDialog_saveFile
+							rendOutputFilename = renderSceneDialog_Filename
 							messageBox "Batch Process aborted by User"
 							exit
 						)
@@ -916,10 +929,12 @@ macroScript JH_BatchCameraRender
 							format "Output destination is not valid (%). Batch : % aborted.\n" myOutput renderingBatchname
 						)
 					)
-					-- reset counter
+					
+					-- reset
 					renderingFrame = 0
 					renderingCount = 0
 					rendSaveFile = renderSceneDialog_saveFile
+					rendOutputFilename = renderSceneDialog_Filename
 				)
 			) else (
 				format "Camera does not exist. Batch : % aborted.\n" renderingBatchname
@@ -1073,7 +1088,7 @@ macroScript JH_BatchCameraRender
 				(
 					format "############## Start Rendering File ##############\n"
 					format "File : %\n" f
-					loadMaxFile f
+					loadMaxFile f useFileUnits:true quiet:true
 					renderHandler (getListViewCheckedIndices())
 				)
 			)
