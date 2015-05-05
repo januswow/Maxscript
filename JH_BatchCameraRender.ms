@@ -33,6 +33,7 @@ macroScript JH_BatchCameraRender
 	renderingCount = 0;
 	renderingBatchname = "New Batch"
 	renderingCamera = "Camera777"
+	renderingMultipleFiles = false
 	
 	-- expose rollout
 	global mainRolloutFloater
@@ -935,6 +936,8 @@ macroScript JH_BatchCameraRender
 					renderingCount = 0
 					rendSaveFile = renderSceneDialog_saveFile
 					rendOutputFilename = renderSceneDialog_Filename
+					
+					if not renderingMultipleFiles do messageBox "Render process is finished."
 				)
 			) else (
 				format "Camera does not exist. Batch : % aborted.\n" renderingBatchname
@@ -957,10 +960,12 @@ macroScript JH_BatchCameraRender
 		
 		dotNetControl listView_main "System.Windows.Forms.ListView" height:170
 		
-		button btn_output_openLastRendered "Open Last Rendered Folder" align:#left across:4 enabled:false
-		checkbox ckb_output_quietMode "Quiet mode"checked:true align:#right offset:[40,0]
-		button btn_render "Render ..." align:#right width:80 offset:[20,0]
-		button btn_batch "Batch ..." align:#right width:80
+		button btn_output_openLastRendered "Open Last Rendered Folder" align:#left across:3 enabled:false
+		checkbox ckb_output_quietMode "Quiet mode"checked:true align:#right offset:[40,0]		
+		checkbox ckb_netRender "Net Render" align:#right
+		
+		button btn_render "Render ..." align:#right width:100 offset:[120,0] across:2
+		button btn_batch "Batch ..." align:#right width:100
 		
 		on rollout_batchManager open do
 		(
@@ -1055,6 +1060,7 @@ macroScript JH_BatchCameraRender
 		
 		on btn_render pressed do
 		(
+			renderingMultipleFiles = false
 			renderHandler (getListViewCheckedIndices())
 		)
 		
@@ -1076,7 +1082,7 @@ macroScript JH_BatchCameraRender
 				continueFlag = queryBox queryString
 			)
 			
-			-- get new files
+			-- get new files if needed
 			if not continueFlag do filesArray = openFileDialog()
 			
 			if filesArray != undefined and filesArray.count > 0 do
@@ -1084,13 +1090,16 @@ macroScript JH_BatchCameraRender
 				writeBatchIniValue filesArray
 				format "############## Batch Render ##############\n"
 				format "Files count : %\n" filesArray.count
+				renderingMultipleFiles = true
 				for f in filesArray where doesFileExist f do
 				(
 					format "############## Start Rendering File ##############\n"
 					format "File : %\n" f
 					loadMaxFile f useFileUnits:true quiet:true
 					renderHandler (getListViewCheckedIndices())
-				)
+				)				
+				renderingMultipleFiles = false
+				messageBox "Render process is finished."
 			)
 		)
 		
@@ -1099,12 +1108,23 @@ macroScript JH_BatchCameraRender
 			thisPath = getFilenamePath output_lastRenderPath
 			if doesFileExist thisPath do ShellLaunch ("explorer.exe") ( "/n, " + thisPath)
 		)
+		
+		on ckb_netRender changed state do
+		(
+			vr = renderers.current
+			vrCheckString = substring ((classof vr) as string) 1 5
+			if vrCheckString == "V_Ray" do
+			(
+				vr.system_distributedRender = state
+			)
+		)
 	)
 
 	rollout rollout_batchSettings "Batch Settings"
 	(
 		editText edt_batchName "Batch Name"
-		dropdownlist ddl_renderPresets "Render Presets"
+		dropdownlist ddl_renderPresets "Render Presets" align:#left width:380 across:2
+		button btn_clearRenderPreset "Clear" align:#right width:70 offset:[0,18]
 		
 		on edt_batchName entered str do
 		(
@@ -1117,6 +1137,13 @@ macroScript JH_BatchCameraRender
 			thisPresetName = ddl_renderPresets.selected
 			writeIniValues (getListViewSelectedIndices()) "Render Preset" thisPresetName
 			setListViewSubItems (getListViewSelectedItems()) "Render Preset" thisPresetName
+		)
+		
+		on btn_clearRenderPreset pressed do
+		(
+			ddl_renderPresets.selection = 0
+			writeIniValues (getListViewSelectedIndices()) "Render Preset" ""
+			setListViewSubItems (getListViewSelectedItems()) "Render Preset" ""
 		)
 	)
 
