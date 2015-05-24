@@ -500,7 +500,7 @@ macroScript JH_BatchCameraRender
 		sectionLength = getLastIniSectionLength()
 		if (sectionLength > 0) then
 		(
-			itemsArray = #()		
+			itemsArray = #()
 			for sectionIndex = 0 to sectionLength - 1 do
 			(
 				-- fill each item's data to list view
