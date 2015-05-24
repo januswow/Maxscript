@@ -332,6 +332,45 @@ macroScript JH_BatchCameraRender
 	)
 	
 	----------------------------------------------------------------------------------------------------
+	-- INI File Functions
+	----------------------------------------------------------------------------------------------------
+	
+	fn sortingIniSections =
+	(
+		f_filename = getIniFilename()
+		-- read external file
+		f = openfile f_filename mode:"r+"
+		-- load data to array
+		f_data = #()
+		while not eof f do
+		(
+			cur_line = readline f
+			append f_data cur_line
+		)
+		
+		-- reorder section order
+		count = 0
+		for i = 1 to f_data.count do
+		(
+			if matchPattern f_data[i]  pattern:"[*]" do
+			(
+				f_data[i] = "[Batch_" + count as string + "]"
+				count += 1
+				print f_data[i]
+			)
+		)
+		
+		-- rewrite ini data
+		seek f 0
+		for i = 1 to f_data.count do
+		(
+			format "%\n" f_data[i] to:f
+		)
+		
+		close f
+	)
+	
+	----------------------------------------------------------------------------------------------------
 	-- List View Functions
 	----------------------------------------------------------------------------------------------------
 	
@@ -453,6 +492,7 @@ macroScript JH_BatchCameraRender
 	
 	fn fill_ListView =
 	(
+		sortingIniSections()
 		-- fill data from INI to list view
 		listviewObj = rollout_batchManager.listView_main
 		-- get existing items length in ini file
@@ -960,11 +1000,12 @@ macroScript JH_BatchCameraRender
 		
 		dotNetControl listView_main "System.Windows.Forms.ListView" height:170
 		
-		button btn_output_openLastRendered "Open Last Rendered Folder" align:#left across:3 enabled:false
-		checkbox ckb_output_quietMode "Quiet mode"checked:true align:#right offset:[40,0]		
+		button btn_editINI "Edit INI ..." align:#left width:100 across:3
+		checkbox ckb_output_quietMode "Quiet mode"checked:true align:#right offset:[60,0]		
 		checkbox ckb_netRender "Net Render" align:#right
 		
-		button btn_render "Render ..." align:#right width:100 offset:[120,0] across:2
+		button btn_output_openLastRendered "Open Last Rendered Folder" align:#left across:3 enabled:false
+		button btn_render "Render ..." align:#right width:100 offset:[40,0]
 		button btn_batch "Batch ..." align:#right width:100
 		
 		on rollout_batchManager open do
@@ -1056,6 +1097,15 @@ macroScript JH_BatchCameraRender
 		(
 			writeIniValue val.item.index "Checked" (val.item.checked as string)
 			updateUIState()
+		)
+		
+		on btn_editINI pressed do
+		(
+			-- edit ini file in notepad++ or notepad
+			iniFilename = getIniFilename()
+			result = false
+			if doesFileExist iniFilename do result = shellLaunch "notepad++.exe" iniFilename
+			if doesFileExist iniFilename and not result do shellLaunch "notepad.exe" iniFilename
 		)
 		
 		on btn_render pressed do
