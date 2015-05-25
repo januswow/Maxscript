@@ -1149,8 +1149,8 @@ macroScript JH_BatchCameraRender
 					renderHandler (getListViewCheckedIndices())
 				)				
 				renderingMultipleFiles = false
-				messageBox "Render process is finished."
 			)
+			messageBox "Render process is finished."
 		)
 		
 		on btn_output_openLastRendered pressed do
